@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/tyspice/idIOT/adapters"
 	"github.com/tyspice/idIOT/models"
@@ -45,14 +44,12 @@ func main() {
 			if !ok {
 				break
 			}
-			fmt.Println(dp.CreatedAt)
+			fmt.Println(dp.Field)
 		}
 		wg.Done()
 	}()
 
 	broker := adapters.NewBroker(&cfg)
 	broker.Subscribe(cfg, receiveChan)
-	time.Sleep(5 * time.Second)
-	broker.Finish()
 	wg.Wait()
 }
