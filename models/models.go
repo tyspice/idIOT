@@ -8,14 +8,12 @@ type DataPoint struct {
 	Value     float64
 }
 
-type BrokerClient struct {
-	Broker    string
-	Subscribe func() <-chan DataPoint
-	Finish    func()
+type Subscriber interface {
+	Subscribe(Config, <-chan DataPoint) error
+	Finish() error
 }
 
-type DBClient struct {
-	DB      string
-	Connect func() chan<- DataPoint
-	Finish  func()
+type Flusher interface {
+	Connect(Config, chan<- DataPoint) error
+	Finish() error
 }
