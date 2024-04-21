@@ -9,11 +9,11 @@ type DataPoint struct {
 }
 
 type Subscriber interface {
-	Subscribe(Config, <-chan DataPoint) error
+	Subscribe(Config, chan<- DataPoint) error
 	Finish() error
 }
 
 type Flusher interface {
-	Connect(Config, chan<- DataPoint) error
+	Connect(Config, <-chan DataPoint) error
 	Finish() error
 }

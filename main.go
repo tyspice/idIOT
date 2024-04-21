@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
+	"github.com/tyspice/idIOT/adapters"
 	"github.com/tyspice/idIOT/models"
 	"gopkg.in/yaml.v2"
 )
@@ -30,6 +33,26 @@ func main() {
 	err = yaml.Unmarshal(content, &cfg)
 	check(err)
 
-	fmt.Printf("Config: %+v\n", cfg)
+	receiveChan := make(chan models.DataPoint, 5)
 
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+
+	go func() {
+		for {
+			dp, ok := <-receiveChan
+			if !ok {
+				break
+			}
+			fmt.Println(dp.CreatedAt)
+		}
+		wg.Done()
+	}()
+
+	broker := adapters.NewBroker(&cfg)
+	broker.Subscribe(cfg, receiveChan)
+	time.Sleep(5 * time.Second)
+	broker.Finish()
+	wg.Wait()
 }
