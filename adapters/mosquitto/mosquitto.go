@@ -1,6 +1,7 @@
 package mosquitto
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -9,8 +10,9 @@ import (
 )
 
 type MosquittoClient struct {
-	alive bool
-	out   chan<- models.DataPoint
+	alive  bool
+	out    chan<- models.DataPoint
+	client mqtt.Client
 }
 
 func New() models.Subscriber {
@@ -27,14 +29,18 @@ func (m *MosquittoClient) Subscribe(cfg models.Config, outputChannel chan<- mode
 	opts.AddBroker(addr)
 	opts.SetUsername(cfg.Broker.Username)
 	opts.SetPassword(cfg.Broker.Password)
-	opts.OnConnect = connectHandler
-	opts.SetDefaultPublishHandler(m.handleMessage)
-	client := mqtt.NewClient(opts)
-	if token := client.Connect(); token.Wait() && token.Error() != nil {
+	opts.OnConnect = func(_ mqtt.Client) {
+		fmt.Println("MQTT Connected")
+	}
+	opts.SetDefaultPublishHandler(m.HandleMessage)
+	m.client = mqtt.NewClient(opts)
+	if token := m.client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
-	token := client.Subscribe("topic/test", 1, nil)
-	token.Wait()
+	for _, topic := range cfg.Broker.Topics {
+		token := m.client.Subscribe(topic, 1, nil)
+		token.Wait()
+	}
 	return nil
 }
 
@@ -44,15 +50,25 @@ func (m *MosquittoClient) Finish() error {
 	return nil
 }
 
-func (m *MosquittoClient) handleMessage(_ mqtt.Client, msg mqtt.Message) {
-	dp := models.DataPoint{
-		CreatedAt: time.Now(),
-		Field:     string(msg.Payload()),
-		Value:     5,
+func (m *MosquittoClient) HandleMessage(_ mqtt.Client, msg mqtt.Message) {
+	dps, err := defaultPayloadHandler(msg.Payload())
+	if err != nil {
+		fmt.Println("Error converting payload")
 	}
-	m.out <- dp
+	for _, dp := range dps {
+		m.out <- dp
+	}
 }
 
-var connectHandler mqtt.OnConnectHandler = func(_ mqtt.Client) {
-	fmt.Println("MQTT Connected")
+func defaultPayloadHandler(payload []byte) ([]models.DataPoint, error) {
+	var p models.DefaultBrokerPayload
+	var dps []models.DataPoint
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return nil, err
+	}
+	createdAt := time.Unix(p.UnixTimeStamp, 0)
+	for _, datum := range p.Data {
+		dps = append(dps, models.DataPoint{CreatedAt: createdAt, Field: datum.Field, Value: datum.Value})
+	}
+	return dps, nil
 }

@@ -44,7 +44,7 @@ func main() {
 			if !ok {
 				break
 			}
-			fmt.Println(dp.Field)
+			fmt.Printf("%+v\n", dp)
 		}
 		wg.Done()
 	}()
