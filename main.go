@@ -12,7 +12,56 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// Data Buffer
+func main() {
+	const configPath = ".config/idIOT/config.yaml"
+	var (
+		cfg         models.Config
+		wg          sync.WaitGroup
+		buffer      = newDataBuffer()
+		receiveChan = make(chan models.DataPoint, 10)
+		flushChan   = make(chan []models.DataPoint, 5)
+	)
+
+	// Init config
+	homeDir, err := os.UserHomeDir()
+	check(err)
+
+	content, err := os.ReadFile(filepath.Join(homeDir, configPath))
+	check(err)
+
+	err = yaml.Unmarshal(content, &cfg)
+	check(err)
+
+	// Set up broker adapter and start pushing received
+	// data points into the buffer
+	go bufferFromChannel(buffer, receiveChan, &wg)
+	broker := adapters.NewBroker(&cfg)
+	broker.Subscribe(cfg, receiveChan)
+
+	// Set up database adapter
+	go flushAtInterval(buffer, flushChan, time.Duration(cfg.FlushInterval)*time.Second)
+
+	// remove after db adapter is set up
+	go func() {
+		for {
+			flush := <-flushChan
+			for _, dp := range flush {
+				fmt.Printf("%+v\n", dp)
+			}
+		}
+	}()
+
+	wg.Wait()
+}
+
+// UTIL
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+// DATA BUFFER
 type dataBuffer struct {
 	mu   sync.Mutex
 	data []models.DataPoint
@@ -35,63 +84,22 @@ func (b *dataBuffer) flushToChannel(out chan<- []models.DataPoint) {
 	b.data = b.data[:0]
 }
 
-func main() {
-	var cfg models.Config
-
-	homeDir, err := os.UserHomeDir()
-	check(err)
-
-	configPath := filepath.Join(homeDir, ".config/idIOT/config.yaml")
-
-	content, err := os.ReadFile(configPath)
-	check(err)
-
-	err = yaml.Unmarshal(content, &cfg)
-	check(err)
-
-	buffer := newDataBuffer()
-	receiveChan := make(chan models.DataPoint, 10)
-	flushChan := make(chan []models.DataPoint, 5)
-
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-
-	go func() {
-		for {
-			dp, ok := <-receiveChan
-			if !ok {
-				break
-			}
-			buffer.enqueue(dp)
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		for {
-			time.Sleep(time.Duration(cfg.FlushInterval) * time.Second)
-			buffer.flushToChannel(flushChan)
-		}
-	}()
-
-	go func() {
-		for {
-			flush := <-flushChan
-			for _, dp := range flush {
-				fmt.Printf("%+v\n", dp)
-			}
-		}
-	}()
-
-	broker := adapters.NewBroker(&cfg)
-	broker.Subscribe(cfg, receiveChan)
-	wg.Wait()
+// GOROUTINES
+func flushAtInterval(buffer *dataBuffer, out chan<- []models.DataPoint, duration time.Duration) {
+	for {
+		time.Sleep(duration)
+		buffer.flushToChannel(out)
+	}
 }
 
-// for development
-func check(err error) {
-	if err != nil {
-		panic(err)
+func bufferFromChannel(buffer *dataBuffer, in <-chan models.DataPoint, wg *sync.WaitGroup) {
+	wg.Add(1)
+	for {
+		dp, ok := <-in
+		if !ok {
+			break
+		}
+		buffer.enqueue(dp)
 	}
+	wg.Done()
 }
