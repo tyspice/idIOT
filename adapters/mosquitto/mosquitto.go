@@ -46,6 +46,7 @@ func (m *MosquittoClient) Subscribe(cfg models.Config, outputChannel chan<- mode
 
 func (m *MosquittoClient) Finish() error {
 	m.alive = false
+	m.client.Disconnect(1000)
 	close(m.out)
 	return nil
 }
