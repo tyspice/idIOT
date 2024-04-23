@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -39,17 +38,9 @@ func main() {
 	broker.Subscribe(cfg, receiveChan)
 
 	// Set up database adapter
+	db := adapters.NewDB(&cfg)
+	db.Connect(cfg, flushChan)
 	go flushAtInterval(buffer, flushChan, time.Duration(cfg.FlushInterval)*time.Second)
-
-	// remove after db adapter is set up
-	go func() {
-		for {
-			flush := <-flushChan
-			for _, dp := range flush {
-				fmt.Printf("%+v\n", dp)
-			}
-		}
-	}()
 
 	wg.Wait()
 }

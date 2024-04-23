@@ -22,6 +22,6 @@ type Subscriber interface {
 }
 
 type Flusher interface {
-	Connect(Config, <-chan DataPoint) error
+	Connect(Config, <-chan []DataPoint) error
 	Finish() error
 }
