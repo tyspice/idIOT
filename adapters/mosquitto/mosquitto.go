@@ -67,9 +67,9 @@ func defaultPayloadHandler(payload []byte) ([]models.DataPoint, error) {
 	if err := json.Unmarshal(payload, &p); err != nil {
 		return nil, err
 	}
-	createdAt := time.Unix(p.UnixTimeStamp, 0)
+	createdAt := time.Unix(p.Timestamp, 0)
 	for _, datum := range p.Data {
-		dps = append(dps, models.DataPoint{CreatedAt: createdAt, Field: datum.Field, Value: datum.Value})
+		dps = append(dps, models.DataPoint{CreatedAt: createdAt, Field: datum.Field, Value: datum.Value, Unit: datum.Unit})
 	}
 	return dps, nil
 }

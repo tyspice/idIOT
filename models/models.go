@@ -6,13 +6,16 @@ type DataPoint struct {
 	CreatedAt time.Time
 	Field     string
 	Value     float64
+	Unit      string
 }
 
 type DefaultBrokerPayload struct {
-	UnixTimeStamp int64 `json:"unixTimeStamp"`
-	Data          []struct {
+	Timestamp int64  `json:"timestamp"`
+	SensorId  string `json:"sensorId"`
+	Data      []struct {
 		Field string  `json:"field"`
 		Value float64 `json:"value"`
+		Unit  string  `json:"unit"`
 	} `json:"data"`
 }
 
