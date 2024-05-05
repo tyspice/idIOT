@@ -41,7 +41,7 @@ func (vm *VMClient) Connect(cfg models.Config, in <-chan []models.DataPoint) err
 			if !vm.alive {
 				break
 			}
-			go vm.pushToVM(dps)
+			go vm.pushToVM(&dps)
 		}
 	}()
 	return nil
@@ -52,9 +52,9 @@ func (vm *VMClient) Finish() error {
 	return nil
 }
 
-func (vm *VMClient) pushToVM(dps []models.DataPoint) {
-	var body []VMMetric
-	for _, dp := range dps {
+func (vm *VMClient) pushToVM(dps *[]models.DataPoint) {
+	var body []byte
+	for _, dp := range *dps {
 		vmDP := VMMetric{
 			Metric: struct {
 				Name string `json:"__name__"`
@@ -64,17 +64,17 @@ func (vm *VMClient) pushToVM(dps []models.DataPoint) {
 				Unit: dp.Unit,
 			},
 			Values:     []float64{dp.Value},
-			Timestamps: []int64{dp.CreatedAt.Unix()},
+			Timestamps: []int64{dp.CreatedAt.UnixMilli()},
 		}
-		body = append(body, vmDP)
+
+		jsonObj, err := json.Marshal(vmDP)
+		if err != nil {
+			panic(err)
+		}
+		body = append(append(body, jsonObj...), byte('\n'))
 	}
 
-	jsonBody, err := json.Marshal(body)
-	if err != nil {
-		panic(err)
-	}
-
-	resp, err := http.Post(vm.addr, "application/json", bytes.NewBuffer(jsonBody))
+	resp, err := http.Post(vm.addr, "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		panic(err)
 	}
