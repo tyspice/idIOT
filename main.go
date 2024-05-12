@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,20 +13,33 @@ import (
 )
 
 func main() {
-	const configPath = ".config/idIOT/config.yaml"
+	const (
+		etcPath  = "/etc/idIOT/config.yaml"
+		homePath = ".config/idIOT/config.yaml"
+	)
+
 	var (
 		cfg         models.Config
 		wg          sync.WaitGroup
+		cfgFilePath string
 		buffer      = newDataBuffer()
 		receiveChan = make(chan models.DataPoint, 10)
 		flushChan   = make(chan []models.DataPoint, 5)
 	)
 
 	// Init config
-	homeDir, err := os.UserHomeDir()
-	check(err)
+	_, err := os.Stat(etcPath)
+	etcFileExists := !errors.Is(err, os.ErrNotExist)
 
-	content, err := os.ReadFile(filepath.Join(homeDir, configPath))
+	if etcFileExists {
+		cfgFilePath = etcPath
+	} else {
+		homeDir, err := os.UserHomeDir()
+		check(err)
+		cfgFilePath = filepath.Join(homeDir, homePath)
+	}
+
+	content, err := os.ReadFile(cfgFilePath)
 	check(err)
 
 	err = yaml.Unmarshal(content, &cfg)
